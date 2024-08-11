@@ -64,12 +64,7 @@ const elements = {
 	},
 	breadcrumbsWrapper: {
 		type: 'div',
-		class: 'super-navbar__breadcrumbs',
-		style: {
-			position: 'fixed',
-			top: 0,
-			left: 0,
-		},
+		class: 'super-navbar__breadcrumbs'
 	},
 	breadcrumbs: {
 		type: 'div',
@@ -149,11 +144,13 @@ function getBreadcrumbs() {
 		breadcrumbsWrapper = createBreadcrumbs()
 	}
 
-	for (const rule in elements.breadcrumbsWrapper.style) {
-		breadcrumbsWrapper.style[rule] = elements.breadcrumbsWrapper.style[rule]
+	if (elements.breadcrumbsWrapper.style) {
+		for (const rule in elements.breadcrumbsWrapper.style) {
+			breadcrumbsWrapper.style[rule] = elements.breadcrumbsWrapper.style[rule]
+		}
 	}
 
-	container.style.height = breadcrumbsWrapper.clientHeight + 'px'
+	// 	container.style.height = breadcrumbsWrapper.clientHeight + 'px'
 
 	const breadcrumbs = breadcrumbsWrapper.getElementsByClassName(elements.breadcrumbs.class)[0]
 	return breadcrumbs
