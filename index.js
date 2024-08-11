@@ -1,6 +1,7 @@
 const ENABLED = true
 const LOCAL_STORAGE_KEY = 'navigationTitles'
 const MAX_VISIBLE_CRUMBS = 4
+const PHONE_SCREEN_WIDTH = 1000
 const ELLIPSIS = { title: '...' }
 
 const ROADMAP_URL = "https://app.ow.consulting/roadmap"
@@ -80,6 +81,16 @@ const elements = {
 		class: 'notion-link notion-breadcrumb__ellipsis',
 		classes: ['notion-link', 'notion-breadcrumb__ellipsis'],
 	},
+	dropdownMenu: {
+		type: 'div',
+		class: 'dropdown-menu',
+		hideClass: 'dropdown-menu__hide',
+		classes: ['dropdown-menu', 'dropdown-menu__hide'],
+	},
+	dropdownItem: {
+		type: 'div',
+		class: 'dropdown-menu__item',
+	},
 	title: {
 		type: 'div',
 		class: 'notion-navbar__title notion-breadcrumb__title',
@@ -92,20 +103,65 @@ const elements = {
 	},
 }
 
-function createLink(title, url) {
-	const type = url
-		? elements.link.type
-		: elements.ellipsis.type
+function once(eventName, callback) {
+	const onEvent = function (event) {
+		document.removeEventListener(eventName, onEvent)
+		callback(event)
+	}
+
+	document.addEventListener(eventName, onEvent)
+}
+
+function createLink(title, urls) {
+	const isEllipsis = Array.isArray(urls)
+
+	const type = isEllipsis
+		? elements.ellipsis.type
+		: elements.link.type
+
+	const classes = isEllipsis
+		? elements.ellipsis.classes
+		: elements.link.classes
 
 	const linkElement = document.createElement(type)
-	linkElement.classList.add(...elements.link.classes)
-	if (url) linkElement.href = url
+	linkElement.classList.add(...classes)
+
+	/** @type {HTMLElement} */
+	let dropdownMenu = null
+
+	if (isEllipsis) {
+		dropdownMenu = document.createElement(elements.dropdownMenu.type)
+		dropdownMenu.classList.add(...elements.dropdownMenu.classes)
+
+		for (const { title, url } of urls) {
+			dropdownMenu.appendChild(createLink(title, url))
+		}
+
+		linkElement.addEventListener('click', () => {
+			const isHidden = dropdownMenu.classList.toggle(elements.dropdownMenu.hideClass)
+
+			if (!isHidden) {
+				setTimeout(() => {
+					once('click', () => {
+						dropdownMenu.classList.toggle(elements.dropdownMenu.hideClass, true)
+					})
+				}, 50)
+			}
+		})
+	} else {
+		linkElement.href = urls
+	}
 
 	const titleElement = document.createElement(elements.title.type)
 	titleElement.classList.add(...elements.title.classes)
 	titleElement.innerText = title
 
 	linkElement.appendChild(titleElement)
+
+	if (dropdownMenu) {
+		linkElement.appendChild(dropdownMenu)
+	}
+
 	return linkElement
 }
 
@@ -150,8 +206,6 @@ function getBreadcrumbs() {
 		}
 	}
 
-	// 	container.style.height = breadcrumbsWrapper.clientHeight + 'px'
-
 	const breadcrumbs = breadcrumbsWrapper.getElementsByClassName(elements.breadcrumbs.class)[0]
 	return breadcrumbs
 }
@@ -161,6 +215,18 @@ function updateLinks(history, callback) {
 	if (!breadcrumbs) return false
 
 	breadcrumbs.innerHTML = ''
+	const screenWidth = window.innerWidth;
+
+	if (screenWidth < PHONE_SCREEN_WIDTH) {
+		const prevPages = history
+			.slice(0, history.length - 1)
+			.reverse()
+
+		const link = createLink(history[history.length - 1].title, prevPages)
+		breadcrumbs.appendChild(link)
+
+		return true
+	}
 
 	for (let i = 0; i < history.length; ++i) {
 		let entry = history[i]
@@ -178,10 +244,14 @@ function updateLinks(history, callback) {
 		}
 
 		const { title, url } = entry
-		const link = createLink(title, url)
+		const urls = entry === ELLIPSIS
+			? history.slice(1, i).reverse()
+			: url
+
+		const link = createLink(title, urls)
 		breadcrumbs.appendChild(link)
 
-		if (url) {
+		if (entry !== ELLIPSIS) {
 			link.addEventListener('click', event => {
 				event.preventDefault()
 				callback(entry, i)
@@ -222,11 +292,6 @@ function getNavigationHistory() {
 			const prevItem = array[index - 1]
 			return prevItem.url !== entry.url
 		})
-	// .map((entry, index) => ({
-	// 	...entry,
-	// 	index,
-	// }))
-	// .filter(entry => entry.url !== CLIENT_DASHBOARD_PAGE.url)
 
 	const currentHref = location.href
 	const currentEntryIndex = navigationHistory.findIndex(entry => entry.url === currentHref)
@@ -402,6 +467,13 @@ async function initBreadcrumbs() {
 	window.navigation = resolveNavigation(updateBreadcrumbs)
 	setTimeout(updateBreadcrumbs, 50)
 
+	let resizeTimeout = null
+
+	window.addEventListener('resize', () => {
+		clearTimeout(resizeTimeout)
+		resizeTimeout = setTimeout(updateBreadcrumbs, 250)
+	})
+
 	console.log('Breadcrumbs initialized')
 }
 
@@ -428,130 +500,6 @@ function resolveNavigation(navigationEventCallback) {
  * @property {Entry[]} entries
  */
 function resolveCustomNavigation(navigationEventCallback) {
-	// const CustomNavigation = {
-	// 	/** @type {true} */
-	// 	__CUSTOM_NAVIGATION: true,
-
-	// 	/** @type {State} */
-	// 	_state: null,
-
-	// 	_init() {
-	// 		this.setState({
-	// 			entries: this.getState().entries || [],
-	// 			...this.getState(), // overwrite default values with saved ones if they exist
-	// 		})
-
-	// 		this.processEntry()
-
-	// 		let currentEntry = null
-	// 		setInterval(() => {
-	// 			if (currentEntry !== history.state?.__CUSTOM_NAVIGATION_CURRENT_ENTRY) {
-	// 				currentEntry = history.state?.__CUSTOM_NAVIGATION_CURRENT_ENTRY
-	// 				this.processEntry()
-
-	// 				console.log(currentEntry)
-	// 			}
-	// 		}, 50);
-
-	// 		// fuck popstate
-	// 		// addEventListener("popstate", () => {
-	// 		// 	this.processEntry()
-	// 		// })
-	// 	},
-
-	// 	processEntry() {
-	// 		let entry = this.getCurrentEntry()
-
-	// 		if (!entry) {
-	// 			entry = this.pushEntry()
-	// 			this.setCurrentEntry(entry)
-	// 		}
-
-	// 		navigationEventCallback()
-	// 	},
-
-	// 	saveEntries() {
-	// 		this.setState({ entries: this._state.entries })
-	// 	},
-
-	// 	/**
-	// 	 * @returns {Entry[]}
-	// 	 */
-	// 	entries() {
-	// 		return this._state.entries
-	// 	},
-
-	// 	/**
-	// 	 * @returns {Entry}
-	// 	 */
-	// 	get currentEntry() {
-	// 		return this.getCurrentEntry()
-	// 	},
-
-	// 	/**
-	// 	 * @returns {Entry}
-	// 	 */
-	// 	getCurrentEntry() {
-	// 		return window.history.state?.__CUSTOM_NAVIGATION_CURRENT_ENTRY
-	// 	},
-
-	// 	/**
-	// 	 * @param {Partial<Entry>} partialEntry
-	// 	 */
-	// 	setCurrentEntry(partialEntry) {
-	// 		const newEntry = {
-	// 			...this.getCurrentEntry(),
-	// 			...partialEntry,
-	// 		}
-
-	// 		window.history.replaceState({
-	// 			...window.history.state,
-	// 			__CUSTOM_NAVIGATION_CURRENT_ENTRY: newEntry,
-	// 		}, '')
-	// 	},
-
-	// 	/**
-	// 	 * @param {string} url
-	// 	 * @returns {Entry}
-	// 	 */
-	// 	pushEntry(url = location.href) {
-	// 		/** @type {Entry} */
-	// 		const entry = {
-	// 			url,
-	// 			index: this.entries().length,
-	// 		}
-
-	// 		this.entries().push(entry)
-	// 		this.saveEntries()
-
-	// 		return entry
-	// 	},
-
-	// 	/**
-	// 	 * @returns {State}
-	// 	 */
-	// 	getState() {
-	// 		return this._state = this._state
-	// 			|| window.history.state?.__CUSTOM_NAVIGATION
-	// 			|| { entries: [] }
-	// 	},
-
-	// 	/**
-	// 	 * @param {Partial<State>} partialState
-	// 	 */
-	// 	setState(partialState) {
-	// 		let newState = {
-	// 			...this.getState(),
-	// 			...partialState,
-	// 		}
-
-	// 		window.history.replaceState({
-	// 			...window.history.state,
-	// 			__CUSTOM_NAVIGATION: newState,
-	// 		}, '')
-	// 	},
-	// }
-
 	const CustomNavigation = {
 		/** @type {true} */
 		__CUSTOM_NAVIGATION: true,
