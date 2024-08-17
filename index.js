@@ -1,7 +1,7 @@
 const ENABLED = true
 const LOCAL_STORAGE_KEY = 'navigationTitles'
 const MAX_VISIBLE_CRUMBS = 4
-const PHONE_SCREEN_WIDTH = 1000
+const PHONE_SCREEN_WIDTH = 991
 const ELLIPSIS = { title: '...' }
 
 const ROADMAP_URL = "https://app.ow.consulting/roadmap"
