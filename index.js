@@ -81,11 +81,24 @@ const elements = {
 		class: 'notion-link notion-breadcrumb__ellipsis',
 		classes: ['notion-link', 'notion-breadcrumb__ellipsis'],
 	},
+	dropdownTrigger: {
+		type: 'div',
+		class: 'notion-link notion-breadcrumb__dropdown-trigger',
+		classes: ['notion-link', 'notion-breadcrumb__dropdown-trigger'],
+		svgIcon: `<svg viewBox="0 0 24 24">
+			<path d="M7.38 21.01c.49.49 1.28.49 1.77 0l8.31-8.31c.39-.39.39-1.02 0-1.41L9.15 2.98c-.49-.49-1.28-.49-1.77 0s-.49 1.28 0 1.77L14.62 12l-7.25 7.25c-.48.48-.48 1.28.01 1.76"></path>
+		</svg>`,
+	},
 	dropdownMenu: {
 		type: 'div',
 		class: 'dropdown-menu',
 		hideClass: 'dropdown-menu__hide',
 		classes: ['dropdown-menu', 'dropdown-menu__hide'],
+	},
+	dropdownMenuContent: {
+		type: 'div',
+		class: 'dropdown-menu__content',
+		classes: ['dropdown-menu__content'],
 	},
 	dropdownItem: {
 		type: 'div',
@@ -112,38 +125,61 @@ function once(eventName, callback) {
 	document.addEventListener(eventName, onEvent)
 }
 
-function createLink(title, urls) {
-	const isEllipsis = Array.isArray(urls)
+function createLink(title, urls, isDropdownTrigger = false) {
+	const multipleURLs = Array.isArray(urls) || isDropdownTrigger
 
-	const type = isEllipsis
-		? elements.ellipsis.type
-		: elements.link.type
+	const element = isDropdownTrigger
+		? elements.dropdownTrigger
+		: (multipleURLs
+			? elements.ellipsis
+			: elements.link
+		)
 
-	const classes = isEllipsis
-		? elements.ellipsis.classes
-		: elements.link.classes
+	const { type, classes } = element
 
 	const linkElement = document.createElement(type)
 	linkElement.classList.add(...classes)
 
 	/** @type {HTMLElement} */
 	let dropdownMenu = null
+	let svg = null
+	let isOpen = false
 
-	if (isEllipsis) {
+	const OPENED = '-90deg'
+	const CLOSED = '90deg'
+
+	function updateSVGAngle() {
+		if (svg) {
+			svg.style.rotate = isOpen ? OPENED : CLOSED
+		}
+	}
+
+	if (multipleURLs) {
 		dropdownMenu = document.createElement(elements.dropdownMenu.type)
 		dropdownMenu.classList.add(...elements.dropdownMenu.classes)
 
+		const dropdownMenuContent = document.createElement(elements.dropdownMenuContent.type)
+		dropdownMenuContent.classList.add(...elements.dropdownMenuContent.classes)
+		dropdownMenu.appendChild(dropdownMenuContent)
+
 		for (const { title, url } of urls) {
-			dropdownMenu.appendChild(createLink(title, url))
+			dropdownMenuContent.appendChild(createLink(title, url))
+		}
+
+		function toggle(newState) {
+			newState = newState == null ? undefined : !newState
+			isOpen = !dropdownMenu.classList.toggle(elements.dropdownMenu.hideClass, newState)
+			updateSVGAngle()
+			return isOpen
 		}
 
 		linkElement.addEventListener('click', () => {
-			const isHidden = dropdownMenu.classList.toggle(elements.dropdownMenu.hideClass)
+			const isOpen = toggle()
 
-			if (!isHidden) {
+			if (isOpen) {
 				setTimeout(() => {
 					once('click', () => {
-						dropdownMenu.classList.toggle(elements.dropdownMenu.hideClass, true)
+						toggle(false)
 					})
 				}, 50)
 			}
@@ -154,7 +190,19 @@ function createLink(title, urls) {
 
 	const titleElement = document.createElement(elements.title.type)
 	titleElement.classList.add(...elements.title.classes)
-	titleElement.innerText = title
+
+	if (isDropdownTrigger) {
+		const span = document.createElement('span')
+		span.innerText = title
+
+		titleElement.innerHTML = elements.dropdownTrigger.svgIcon
+		titleElement.insertBefore(span, titleElement.firstChild)
+
+		svg = titleElement.querySelector('svg')
+		updateSVGAngle()
+	} else {
+		titleElement.innerText = title
+	}
 
 	linkElement.appendChild(titleElement)
 
@@ -222,7 +270,7 @@ function updateLinks(history, callback) {
 			.slice(0, history.length - 1)
 			.reverse()
 
-		const link = createLink(history[history.length - 1].title, prevPages)
+		const link = createLink(history[history.length - 1].title, prevPages, true)
 		breadcrumbs.appendChild(link)
 
 		return true
